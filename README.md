@@ -72,3 +72,8 @@ If you prefer running without Docker:
 -   `POST /api/sessions/` - Create Chat Session
 -   `POST /api/chat/` - Send Message (Uses Gemini + Retrieved Context)
 
+
+Access Details:
+
+API Base URL: http://127.0.0.1:8000
+Swagger Documentation: http://127.0.0.1:8000/docs (Use this to interact with the API)
