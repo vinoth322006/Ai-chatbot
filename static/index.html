@@ -1,0 +1,542 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot AI</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --border: #334155;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+        }
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        h2, h3 { margin-top: 0; color: #fff; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--text-muted); }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #334155;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button.secondary { background-color: #475569; }
+        button.secondary:hover { background-color: #64748b; }
+        
+        /* Main Chat Area */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+        .chat-window {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        #chat-history {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+        }
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--primary);
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+        .message.bot {
+            align-self: flex-start;
+            background-color: #334155;
+            color: var(--text-color);
+            border-bottom-left-radius: 2px;
+        }
+        .input-area {
+            padding: 20px;
+            background-color: #1e293b;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+        .session-item {
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-bottom: 5px;
+        }
+        .session-item:hover { background-color: #334155; }
+        .session-item.active { background-color: #334155; border-color: var(--primary); }
+        
+        #auth-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .auth-box { width: 350px; }
+        
+        .hidden { display: none !important; }
+        .status { font-size: 0.8em; margin-top: 5px; min-height: 1.2em; }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        
+        /* Document List */
+        #doc-list { font-size: 0.85em; }
+        .doc-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay">
+    <div class="card auth-box">
+        <h2 style="text-align: center;">Welcome</h2>
+        <div id="login-form">
+            <h3>Login</h3>
+            <label>Email</label>
+            <input type="email" id="login-email" placeholder="user@example.com" value="demo@example.com">
+            <label>Password</label>
+            <input type="password" id="login-password" placeholder="Password" value="demo_password_123">
+            <button onclick="login()">Login</button>
+            <p style="text-align:center; font-size:0.9em; margin-top:10px;">
+                <a href="#" onclick="toggleAuth('register')" style="color:var(--primary)">Need an account? Register</a>
+            </p>
+            <div id="login-status" class="status"></div>
+        </div>
+        
+        <div id="register-form" class="hidden">
+            <h3>Register</h3>
+            <label>Email</label>
+            <input type="email" id="reg-email" placeholder="user@example.com">
+            <label>Username</label>
+            <input type="text" id="reg-username" placeholder="username">
+            <label>Password</label>
+            <input type="password" id="reg-password" placeholder="Password">
+            <button onclick="register()">Register</button>
+            <p style="text-align:center; font-size:0.9em; margin-top:10px;">
+                <a href="#" onclick="toggleAuth('login')" style="color:var(--primary)">Back to Login</a>
+            </p>
+            <div id="reg-status" class="status"></div>
+        </div>
+    </div>
+</div>
+
+<div class="container hidden" id="app-container">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <!-- USER INFO -->
+        <div class="card">
+            <h3>Profile</h3>
+            <div id="user-display" style="margin-bottom:10px; font-weight:bold;"></div>
+            <button class="secondary" onclick="logout()">Logout</button>
+        </div>
+        
+        <!-- SESSIONS -->
+        <div class="card" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+            <h3>Chats</h3>
+            <div style="display:flex; gap:5px; margin-bottom:10px;">
+                <input type="text" id="new-session-name" placeholder="New Chat Name" style="margin-bottom:0;">
+                <button onclick="createSession()" style="width: auto;">+</button>
+            </div>
+            <div id="session-list" style="overflow-y: auto; flex-grow: 1;">
+                <!-- Sessions go here -->
+            </div>
+        </div>
+        
+        <!-- DOCUMENTS -->
+        <div class="card">
+            <h3>Documents</h3>
+            <p style="font-size:0.8em; color:var(--text-muted); margin-top:-10px;">For current chat</p>
+            <input type="file" id="file-upload" style="font-size: 0.8em;">
+            <button onclick="uploadDocument()" id="upload-btn">Upload</button>
+            <div id="upload-status" class="status"></div>
+            <div id="doc-list" style="margin-top:10px;">
+                <!-- Docs go here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CHAT -->
+    <div class="main-content">
+        <div class="chat-window">
+            <div id="chat-header" style="padding: 15px; border-bottom: 1px solid var(--border); background: #1e293b;">
+                <h3 style="margin:0;" id="current-session-title">Select a Chat</h3>
+            </div>
+            
+            <div id="chat-history">
+                <div style="text-align: center; color: var(--text-muted); margin-top: 50px;">
+                    Select a session to start chatting.
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Type your message..." onkeypress="handleKey(event)" disabled>
+                <button onclick="sendMessage()" style="width: 100px;" id="send-btn" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:8000/api";
+    let token = localStorage.getItem('token');
+    let currentSessionId = null;
+
+    // --- INIT ---
+    if (token) {
+        showApp();
+        loadSessions();
+    }
+
+    // --- AUTH ---
+    function toggleAuth(mode) {
+        if(mode === 'register') {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+        } else {
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+        }
+    }
+
+    async function login() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const statusEl = document.getElementById('login-status');
+        
+        statusEl.textContent = 'Logging in...';
+        statusEl.className = 'status';
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('username', email); // OAuth2 expects 'username'
+            formData.append('password', password);
+
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            });
+
+            if (!res.ok) throw new Error('Invalid credentials');
+            
+            const data = await res.json();
+            token = data.access_token;
+            localStorage.setItem('token', token);
+            localStorage.setItem('user_email', email);
+            
+            statusEl.textContent = 'Success!';
+            statusEl.className = 'status success';
+            setTimeout(showApp, 500);
+            loadSessions();
+        } catch (e) {
+            statusEl.textContent = e.message;
+            statusEl.className = 'status error';
+        }
+    }
+
+    async function register() {
+        const email = document.getElementById('reg-email').value;
+        const username = document.getElementById('reg-username').value;
+        const password = document.getElementById('reg-password').value;
+        const statusEl = document.getElementById('reg-status');
+
+        try {
+            const res = await fetch(`${API_URL}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, username, password })
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Registration failed');
+            }
+            
+            statusEl.textContent = 'Registered! Please login.';
+            statusEl.className = 'status success';
+            setTimeout(() => toggleAuth('login'), 1500);
+        } catch (e) {
+            statusEl.textContent = e.message;
+            statusEl.className = 'status error';
+        }
+    }
+
+    function logout() {
+        token = null;
+        localStorage.removeItem('token');
+        location.reload();
+    }
+
+    function showApp() {
+        document.getElementById('auth-overlay').classList.add('hidden');
+        document.getElementById('app-container').classList.remove('hidden');
+        document.getElementById('user-display').textContent = localStorage.getItem('user_email') || 'User';
+    }
+
+    // --- SESSIONS ---
+    async function loadSessions() {
+        try {
+            const res = await fetch(`${API_URL}/sessions/`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const sessions = await res.json();
+            const list = document.getElementById('session-list');
+            list.innerHTML = '';
+            
+            sessions.forEach(s => {
+                const div = document.createElement('div');
+                div.className = `session-item ${s.id === currentSessionId ? 'active' : ''}`;
+                div.textContent = s.name || 'Untitled';
+                div.onclick = () => selectSession(s.id, s.name);
+                list.appendChild(div);
+            });
+            
+            // Auto Select first if none
+            if (!currentSessionId && sessions.length > 0) {
+                selectSession(sessions[0].id, sessions[0].name);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function createSession() {
+        const name = document.getElementById('new-session-name').value || 'New Chat';
+        try {
+            await fetch(`${API_URL}/sessions/`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name })
+            });
+            document.getElementById('new-session-name').value = '';
+            loadSessions();
+        } catch (e) { console.error(e); }
+    }
+
+    async function selectSession(id, name) {
+        currentSessionId = id;
+        document.getElementById('current-session-title').textContent = name || 'Chat';
+        document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+        // Re-render list to update active state logic accurately or just do standard DOM manip involved above? 
+        // Simple: reload list is easier for now or just set styling manually?
+        // Let's just reload list for simplicity of code
+        loadSessions(); 
+
+        document.getElementById('message-input').disabled = false;
+        document.getElementById('send-btn').disabled = false;
+        
+        loadDocuments(id);
+        loadHistory(id);
+    }
+
+    // --- DOCUMENTS ---
+    async function loadDocuments(sessionId) {
+        const res = await fetch(`${API_URL}/documents/session/${sessionId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const docs = await res.json();
+        const list = document.getElementById('doc-list');
+        list.innerHTML = '';
+        docs.forEach(d => {
+            const div = document.createElement('div');
+            div.className = 'doc-item';
+            div.innerHTML = `<span>${d.filename}</span> <span style="font-size:0.8em; color:gray">${d.chunks_count} chunks</span>`;
+            list.appendChild(div);
+        });
+    }
+
+    async function uploadDocument() {
+        if (!currentSessionId) return alert('Select a session first');
+        const fileInput = document.getElementById('file-upload');
+        const file = fileInput.files[0];
+        if (!file) return alert('Select a file');
+        
+        const statusEl = document.getElementById('upload-status');
+        statusEl.textContent = 'Uploading...';
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const res = await fetch(`${API_URL}/documents/upload?session_id=${currentSessionId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            
+            if (!res.ok) throw new Error('Upload failed');
+            
+            statusEl.textContent = 'Upload Success';
+            statusEl.className = 'status success';
+            loadDocuments(currentSessionId);
+            fileInput.value = '';
+        } catch (e) {
+            statusEl.textContent = 'Error uploading';
+            statusEl.className = 'status error';
+        }
+    }
+
+    // --- CHAT ---
+    async function loadHistory(sessionId) {
+        const historyDiv = document.getElementById('chat-history');
+        historyDiv.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
+        
+        try {
+            const res = await fetch(`${API_URL}/chat/session/${sessionId}/history`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            renderChat(data.history);
+        } catch(e) {
+            historyDiv.innerHTML = '<div style="color:red">Failed to load history</div>';
+        }
+    }
+
+    function renderChat(messages) {
+        const historyDiv = document.getElementById('chat-history');
+        historyDiv.innerHTML = '';
+        if (messages.length === 0) {
+            historyDiv.innerHTML = '<div style="text-align:center; color:gray; margin-top:20px;">No messages yet. Start chatting!</div>';
+            return;
+        }
+        
+        messages.forEach(msg => {
+            appendMessage(msg.user_message, 'user');
+            appendMessage(msg.bot_response, 'bot');
+        });
+        scrollToBottom();
+    }
+
+    function appendMessage(text, role) {
+        const historyDiv = document.getElementById('chat-history');
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        div.textContent = text;
+        historyDiv.appendChild(div);
+        scrollToBottom();
+    }
+    
+    function scrollToBottom() {
+        const historyDiv = document.getElementById('chat-history');
+        historyDiv.scrollTop = historyDiv.scrollHeight;
+    }
+
+    function handleKey(e) {
+        if (e.key === 'Enter') sendMessage();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('message-input');
+        const text = input.value.trim();
+        if (!text || !currentSessionId) return;
+        
+        input.value = '';
+        appendMessage(text, 'user');
+        
+        // Add loading placeholder
+        const historyDiv = document.getElementById('chat-history');
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'message bot';
+        loadingDiv.textContent = 'Thinking...';
+        loadingDiv.id = 'loading-msg';
+        historyDiv.appendChild(loadingDiv);
+        scrollToBottom();
+        
+        try {
+            const res = await fetch(`${API_URL}/chat/`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    session_id: currentSessionId,
+                    message: text
+                })
+            });
+            
+            const data = await res.json();
+            // Remove loading
+            document.getElementById('loading-msg').remove();
+            
+            if (data.response) {
+                appendMessage(data.response, 'bot');
+            } else {
+                appendMessage('Error: ' + JSON.stringify(data), 'bot');
+            }
+        } catch (e) {
+            document.getElementById('loading-msg').remove();
+            appendMessage('Error sending message', 'bot');
+        }
+    }
+</script>
+
+</body>
+</html>

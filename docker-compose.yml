@@ -1,0 +1,37 @@
+
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: rag_chatbot_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rag_chatbot_db
+    ports:
+      - "5435:5432" # Mapped to 5435 to avoid conflict with local postgres (5432/5433)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: rag_chatbot_app
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/rag_chatbot_db
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      # - GROK_API_KEY=${GROK_API_KEY} 
+      - JWT_SECRET_KEY=docker-secret-key-change-me
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+    volumes:
+      - .:/app # Hot reload for development
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:
